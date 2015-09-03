@@ -421,6 +421,11 @@ namespace uPLibrary.Networking.M2Mqtt
         private void Init(string brokerHostName, int brokerPort, bool secure, X509Certificate caCert, MqttSslProtocols sslProtocol)
 #endif
         {
+             // register the tracer in TRACE mode for .NET target
+#if TRACE && !(MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK || WINDOWS_APP || WINDOWS_PHONE_APP)
+            MqttUtility.Trace.TraceLevel = MqttUtility.TraceLevel.Verbose | TraceLevel.Queuing | TraceLevel.Frame;
+            MqttUtility.Trace.TraceListener = Console.WriteLine;
+#endif
             // set default MQTT protocol version (default is 3.1.1)
             this.ProtocolVersion = MqttProtocolVersion.Version_3_1_1;
 #if !SSL
@@ -824,6 +829,8 @@ namespace uPLibrary.Networking.M2Mqtt
         /// <param name="qosLevel">QoS Level</param>
         /// <param name="retain">Retain flag</param>
         /// <returns>Message Id related to PUBLISH message</returns>
+
+        //TODO: Enforce qosLevel param
         public ushort Publish(string topic, byte[] message, byte qosLevel, bool retain)
         {
             MqttMsgPublish publish =
@@ -1153,6 +1160,7 @@ namespace uPLibrary.Networking.M2Mqtt
             if (enqueue)
             {
                 // set a default state
+                //TODO: assignment reduntant with Qos level 0 case
                 MqttMsgState state = MqttMsgState.QueuedQos0;
 
                 // based on QoS level, the messages flow between broker and client changes
