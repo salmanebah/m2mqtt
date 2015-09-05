@@ -14,6 +14,7 @@ Contributors:
    Paolo Patierno - initial API and implementation and/or initial documentation
 */
 
+using System;
 using System.Diagnostics;
 
 namespace uPLibrary.Networking.M2Mqtt.Utility
@@ -21,6 +22,7 @@ namespace uPLibrary.Networking.M2Mqtt.Utility
     /// <summary>
     /// Tracing levels
     /// </summary>
+    [FlagsAttribute]
     public enum TraceLevel
     {
         Error = 0x01,
