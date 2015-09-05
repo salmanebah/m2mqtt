@@ -46,6 +46,7 @@ using Windows.Networking.Sockets;
 #endif
 
 using System.Collections;
+using uPLibrary.Networking.M2Mqtt.Persistence;
 
 // alias needed due to Microsoft.SPOT.Trace in .Net Micro Framework
 // (it's ambiguos with uPLibrary.Networking.M2Mqtt.Utility.Trace)
@@ -177,7 +178,7 @@ namespace uPLibrary.Networking.M2Mqtt
         // internal queue for dispatching events
         private Queue eventQueue;
         // session
-        private MqttClientSession session;
+        private IMqttClientPersistence session;
 
         // reference to avoid access to singleton via property
         private MqttSettings settings;
@@ -423,7 +424,7 @@ namespace uPLibrary.Networking.M2Mqtt
         {
              // register the tracer in TRACE mode for .NET target
 #if TRACE && !(MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK || WINDOWS_APP || WINDOWS_PHONE_APP)
-            MqttUtility.Trace.TraceLevel = MqttUtility.TraceLevel.Verbose | TraceLevel.Queuing | TraceLevel.Frame;
+            MqttUtility.Trace.TraceLevel = MqttUtility.TraceLevel.Verbose | TraceLevel.Queuing | TraceLevel.Frame | TraceLevel.Persistence;
             MqttUtility.Trace.TraceListener = Console.WriteLine;
 #endif
             // set default MQTT protocol version (default is 3.1.1)
@@ -1224,14 +1225,20 @@ namespace uPLibrary.Networking.M2Mqtt
                                  (msg.QosLevel == MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE)))
                             {
                                 if (this.session != null)
-                                    this.session.InflightMessages.Add(msgContext.Key, msgContext);
+                                {                                  
+                                    this.session.Add(msgContext.Key, msgContext);
+                                    MqttUtility.Trace.WriteLine(TraceLevel.Persistence, "added {0} to persistence", msg);
+                                }
                             }
                             // to acknowledge and QoS level 2
                             else if ((msgContext.Flow == MqttMsgFlow.ToAcknowledge) &&
                                      (msg.QosLevel == MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE))
                             {
                                 if (this.session != null)
-                                    this.session.InflightMessages.Add(msgContext.Key, msgContext);
+                                {
+                                    this.session.Add(msgContext.Key, msgContext);
+                                    MqttUtility.Trace.WriteLine(TraceLevel.Persistence, "added {0} to persistence", msg);
+                                }
                             }
                         }
                     }
@@ -2062,13 +2069,10 @@ namespace uPLibrary.Networking.M2Mqtt
                                                     // PUBACK received for PUBLISH message with QoS Level 1, remove from session state
                                                     if ((msgInflight.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE) &&
                                                         (this.session != null) &&
-#if (MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK)
-                                                        (this.session.InflightMessages.Contains(msgContext.Key)))
-#else
-                                                        (this.session.InflightMessages.ContainsKey(msgContext.Key)))
-#endif
+                                                        (this.session.Contains(msgContext.Key)))
                                                     {
-                                                        this.session.InflightMessages.Remove(msgContext.Key);
+                                                        MqttUtility.Trace.WriteLine(TraceLevel.Persistence, "removed: {0} from the persistence, PUCKACK received", msgInflight);
+                                                        this.session.Remove(msgContext.Key);
                                                     }
 
 #if TRACE
@@ -2104,13 +2108,10 @@ namespace uPLibrary.Networking.M2Mqtt
                                                         {
                                                             // PUBACK not received in time, PUBLISH retries failed, need to remove from session inflight messages too
                                                             if ((this.session != null) &&
-#if (MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK)
-                                                                (this.session.InflightMessages.Contains(msgContext.Key)))
-#else
-                                                                (this.session.InflightMessages.ContainsKey(msgContext.Key)))
-#endif
+                                                                (this.session.Contains(msgContext.Key)))
                                                             {
-                                                                this.session.InflightMessages.Remove(msgContext.Key);
+                                                                MqttUtility.Trace.WriteLine(TraceLevel.Persistence, "removed: {0} from the persistence, PUBACK not received after retries", msgInflight);
+                                                                this.session.Remove(msgContext.Key);
                                                             }
 
                                                             internalEvent = new MsgPublishedInternalEvent(msgInflight, false);
@@ -2203,13 +2204,10 @@ namespace uPLibrary.Networking.M2Mqtt
                                                     {
                                                         // PUBREC not received in time, PUBLISH retries failed, need to remove from session inflight messages too
                                                         if ((this.session != null) &&
-#if (MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK)
-                                                            (this.session.InflightMessages.Contains(msgContext.Key)))
-#else
-                                                            (this.session.InflightMessages.ContainsKey(msgContext.Key)))
-#endif
+                                                            (this.session.Contains(msgContext.Key)))
                                                         {
-                                                            this.session.InflightMessages.Remove(msgContext.Key);
+                                                            MqttUtility.Trace.WriteLine(TraceLevel.Persistence, "removed: {0} from the persistence, PUBREC not received after retries", msgInflight);
+                                                            this.session.Remove(msgContext.Key);
                                                         }
 
                                                         // if PUBREC for a PUBLISH message not received after retries, raise event for not published
@@ -2270,13 +2268,10 @@ namespace uPLibrary.Networking.M2Mqtt
                                                     // PUBREL received (and PUBCOMP sent) for PUBLISH message with QoS Level 2, remove from session state
                                                     if ((msgInflight.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE) &&
                                                         (this.session != null) &&
-#if (MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK)
-                                                        (this.session.InflightMessages.Contains(msgContext.Key)))
-#else
-                                                        (this.session.InflightMessages.ContainsKey(msgContext.Key)))
-#endif
+                                                        (this.session.Contains(msgContext.Key)))
                                                     {
-                                                        this.session.InflightMessages.Remove(msgContext.Key);
+                                                        MqttUtility.Trace.WriteLine(TraceLevel.Persistence, "removed: {0} from the persistence, PUBREL received", msgInflight);
+                                                        this.session.Remove(msgContext.Key);
                                                     }
 
 #if TRACE
@@ -2333,13 +2328,10 @@ namespace uPLibrary.Networking.M2Mqtt
                                                     // PUBCOMP received for PUBLISH message with QoS Level 2, remove from session state
                                                     if ((msgInflight.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE) &&
                                                         (this.session != null) &&
-#if (MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK)
-                                                        (this.session.InflightMessages.Contains(msgContext.Key)))
-#else
-                                                        (this.session.InflightMessages.ContainsKey(msgContext.Key)))
-#endif
+                                                        (this.session.Contains(msgContext.Key)))
                                                     {
-                                                        this.session.InflightMessages.Remove(msgContext.Key);
+                                                        MqttUtility.Trace.WriteLine(TraceLevel.Persistence, "removed: {0} from the persistence, PUBCOMP received", msgInflight);
+                                                        this.session.Remove(msgContext.Key);
                                                     }
 
 #if TRACE
@@ -2392,13 +2384,10 @@ namespace uPLibrary.Networking.M2Mqtt
                                                     {
                                                         // PUBCOMP not received, PUBREL retries failed, need to remove from session inflight messages too
                                                         if ((this.session != null) &&
-#if (MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK)
-                                                            (this.session.InflightMessages.Contains(msgContext.Key)))
-#else
-                                                            (this.session.InflightMessages.ContainsKey(msgContext.Key)))
-#endif
+                                                            (this.session.Contains(msgContext.Key)))
                                                         {
-                                                            this.session.InflightMessages.Remove(msgContext.Key);
+                                                            MqttUtility.Trace.WriteLine(TraceLevel.Persistence, "removed: {0} from the persistence, PUBCOMP not received after retries", msgInflight);
+                                                            this.session.Remove(msgContext.Key);
                                                         }
 
                                                         // if PUBCOMP for a PUBLISH message not received after retries, raise event for not published
@@ -2510,7 +2499,7 @@ namespace uPLibrary.Networking.M2Mqtt
                 {
                     lock (this.inflightQueue)
                     {
-                        foreach (MqttMsgContext msgContext in this.session.InflightMessages.Values)
+                        foreach (MqttMsgContext msgContext in this.session.GetAll())
                         {
                             this.inflightQueue.Enqueue(msgContext);
 
@@ -2549,7 +2538,7 @@ namespace uPLibrary.Networking.M2Mqtt
                 else
                 {
                     // create new session
-                    this.session = new MqttClientSession(this.ClientId);
+                    this.session = new MqttMemoryPersistence();
                 }
             }
             // clean any previous session
