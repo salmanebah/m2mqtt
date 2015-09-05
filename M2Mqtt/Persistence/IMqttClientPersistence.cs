@@ -10,5 +10,6 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
         void Remove(string key);
         ICollection GetAll();
         void Clear();
+        bool Contains(string key);
     }
 }
