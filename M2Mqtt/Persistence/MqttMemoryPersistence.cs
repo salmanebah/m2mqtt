@@ -28,7 +28,16 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
 
         public void Clear()
         {
-            throw new System.NotImplementedException();
+            inflightMessages.Clear();
+        }
+
+        public bool Contains(string key)
+        {
+#if (MF_FRAMEWORK_VERSION_V4_2 || MF_FRAMEWORK_VERSION_V4_3 || COMPACT_FRAMEWORK)
+            return inflightMessages.Contains(key);
+#else
+            return inflightMessages.ContainsKey(key);
+#endif
         }
     }
 }
