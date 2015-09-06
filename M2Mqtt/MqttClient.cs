@@ -2538,7 +2538,7 @@ namespace uPLibrary.Networking.M2Mqtt
                 else
                 {
                     // create new session
-                    this.session = new MqttMemoryPersistence();
+                    this.session = new MqttDatabasePersistence(".", this.ClientId, this.brokerHostName);
                 }
             }
             // clean any previous session
