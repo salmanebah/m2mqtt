@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Data;
 using System.Data.SQLite;
+using System.IO;
 using System.Text;
 using uPLibrary.Networking.M2Mqtt.Messages;
 
@@ -13,7 +14,7 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
         private string connectionString;
 
         private static string createStm = @"CREATE TABLE IF NOT EXISTS inflightMessages (
-		       key INTEGER PRIMARY KEY,
+		       key TEXT PRIMARY KEY,
 			   state INTEGER check (state >= 1 and state <= 6),
 			   flow INTEGER check (flow = 0 or flow = 1),
 			   attempt INTEGER ,
@@ -44,7 +45,7 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
 
         public MqttDatabasePersistence(string saveDirectory, string clientId, string brokerHostName)
         {
-            connectionString = saveDirectory + @"\" + brokerHostName + clientId + ".db";
+            connectionString = "URI=file:" + saveDirectory + Path.DirectorySeparatorChar + brokerHostName + clientId + ".db";
             using (SQLiteConnection conn = new SQLiteConnection(connectionString))
             {
                 conn.Open();
@@ -66,25 +67,26 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
                 using (SQLiteCommand cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = insertStm;
-                    cmd.Parameters["@key"].Value = key;
-                    cmd.Parameters["@state"].Value = ctx.State;
-                    cmd.Parameters["@flow"].Value = ctx.Flow;
-                    cmd.Parameters["@attempt"].Value = ctx.Attempt;
-                    cmd.Parameters["@timestamp"].Value = ctx.Timestamp;
-                    cmd.Parameters["@type"].Value = ctx.Message.Type;
-                    cmd.Parameters["@dupflag"].Value = ctx.Message.DupFlag;
-                    cmd.Parameters["@qoslevel"].Value = ctx.Message.QosLevel;
-                    cmd.Parameters["@retain"].Value = ctx.Message.Retain;
-                    cmd.Parameters["@messageid"].Value = ctx.Message.MessageId;
+                    cmd.Parameters.AddWithValue("@key", key);
+                    cmd.Parameters.AddWithValue("@state", (int)ctx.State);
+                    cmd.Parameters.AddWithValue("@flow", (int)ctx.Flow);
+                    cmd.Parameters.AddWithValue("@attempt", ctx.Attempt);
+                    cmd.Parameters.AddWithValue("@timestamp", ctx.Timestamp);
+                    cmd.Parameters.AddWithValue("@type", (int)ctx.Message.Type);
+                    cmd.Parameters.AddWithValue("@dupflag", Convert.ToInt32(ctx.Message.DupFlag));
+                    cmd.Parameters.AddWithValue("@qoslevel", (int)ctx.Message.QosLevel);
+                    cmd.Parameters.AddWithValue("@retain", Convert.ToInt32(ctx.Message.Retain));
+                    cmd.Parameters.AddWithValue("@messageid", ctx.Message.MessageId);
                     // if the message is of type publish, save the message content and the topic else save n/a 
-                    cmd.Parameters["@message"].Value =
-                        (ctx.Message.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE)
-                            ? ((MqttMsgPublish) ctx.Message).Message
-                            : Encoding.UTF8.GetBytes("n/a");
-                    cmd.Parameters["@topic"].Value =
-                        (ctx.Message.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE)
-                            ? ((MqttMsgPublish) ctx.Message).Topic
-                            : "n/a";
+                    byte[] msg = (ctx.Message.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE)
+                                   ? ((MqttMsgPublish) ctx.Message).Message
+                                   : Encoding.UTF8.GetBytes("n/a");
+                    cmd.Parameters.AddWithValue("@message", msg);                                        
+                    string topic =  (ctx.Message.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE)
+                                      ? ((MqttMsgPublish) ctx.Message).Topic
+                                      : "n/a";
+                    cmd.Parameters.AddWithValue("@topic", topic);
+
                     cmd.ExecuteNonQuery();
                 }
                 conn.Close();
@@ -99,7 +101,7 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
                 using (SQLiteCommand cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = delKeyStm;
-                    cmd.Parameters["@key"].Value = key;
+                    cmd.Parameters.AddWithValue("@key", key);
                     cmd.ExecuteNonQuery();
                 }
                 conn.Close();
@@ -152,7 +154,7 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
                 using (SQLiteCommand cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = containStm;
-                    cmd.Parameters["@key"].Value = key;
+                    cmd.Parameters.AddWithValue("@key", key);
                     haveKey = cmd.ExecuteScalar() != null;
                 }
                 conn.Close();
