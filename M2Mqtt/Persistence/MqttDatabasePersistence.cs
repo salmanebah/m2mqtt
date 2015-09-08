@@ -171,8 +171,7 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
                 case MqttMsgBase.MQTT_MSG_PUBLISH_TYPE:
                     MqttMsgPublish pubmsg = new MqttMsgPublish();
                     RowToMsgBase(pubmsg, row);
-                    long len = row.GetBytes(10, 0, null, 0, 1);
-                    row.GetBytes(10, 0, pubmsg.Message, 0, (int) len);
+                    pubmsg.Message = (byte[]) row.GetValue(10);
                     pubmsg.Topic = row.GetString(11);
                     message = pubmsg;
                     break;
