@@ -35,7 +35,7 @@ namespace uPLibrary.Networking.M2Mqtt.Persistence
             "DELETE FROM inflightMessages WHERE key = @key";
 
         private static string delAllStm =
-            "DELETE FROM inflightMessage";
+            "DELETE FROM inflightMessages";
 
         private static string containStm =
             "SELECT count(*) FROM inflightMessages WHERE key = @key";
