@@ -1161,7 +1161,6 @@ namespace uPLibrary.Networking.M2Mqtt
             if (enqueue)
             {
                 // set a default state
-                //TODO: assignment reduntant with Qos level 0 case
                 MqttMsgState state = MqttMsgState.QueuedQos0;
 
                 // based on QoS level, the messages flow between broker and client changes
@@ -1209,12 +1208,15 @@ namespace uPLibrary.Networking.M2Mqtt
 
                     if (enqueue)
                     {
-                        // enqueue message and unlock send thread
-                        this.inflightQueue.Enqueue(msgContext);
-
+                        // enqueue message and unlock send thread (only if QoS 0, for QoS 1 or QoS 2, we must be connected to 
+                        // avoid duplication of the message when restoring the inflight queue from the session)
+                        if (msg.QosLevel == MqttMsgBase.QOS_LEVEL_AT_MOST_ONCE || !this.isConnectionClosing)
+                        {
+                            this.inflightQueue.Enqueue(msgContext);
 #if TRACE
-                        MqttUtility.Trace.WriteLine(TraceLevel.Queuing, "enqueued {0}", msg);
+                            MqttUtility.Trace.WriteLine(TraceLevel.Queuing, "enqueued {0}", msg);
 #endif
+                        }
 
                         // PUBLISH message
                         if (msg.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE)
