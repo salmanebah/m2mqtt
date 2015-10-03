@@ -2485,52 +2485,50 @@ namespace uPLibrary.Networking.M2Mqtt
             // if not clean session
             if (!this.CleanSession)
             {
-                // there is a previous session
-                if (this.session != null)
+                if (this.session == null)
                 {
-                    lock (this.inflightQueue)
-                    {
-                        foreach (MqttMsgContext msgContext in this.session.GetAll())
-                        {
-                            this.inflightQueue.Enqueue(msgContext);
+                    // create new session
+                    this.session = new MqttDatabasePersistence(".", this.ClientId, this.brokerHostName);
+                    // this.session = new MqttMemoryPersistence();
+                }
 
-                            // if it is a PUBLISH message to publish
-                            if ((msgContext.Message.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE) &&
-                                (msgContext.Flow == MqttMsgFlow.ToPublish))
+                lock (this.inflightQueue)
+                {
+                    foreach (MqttMsgContext msgContext in this.session.GetAll())
+                    {
+                        this.inflightQueue.Enqueue(msgContext);
+
+                        // if it is a PUBLISH message to publish
+                        if ((msgContext.Message.Type == MqttMsgBase.MQTT_MSG_PUBLISH_TYPE) &&
+                            (msgContext.Flow == MqttMsgFlow.ToPublish))
+                        {
+                            // it's QoS 1 and we haven't received PUBACK
+                            if ((msgContext.Message.QosLevel == MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE) &&
+                                (msgContext.State == MqttMsgState.WaitForPuback))
                             {
-                                // it's QoS 1 and we haven't received PUBACK
-                                if ((msgContext.Message.QosLevel == MqttMsgBase.QOS_LEVEL_AT_LEAST_ONCE) &&
-                                    (msgContext.State == MqttMsgState.WaitForPuback))
+                                // we haven't received PUBACK, we need to resend PUBLISH message
+                                msgContext.State = MqttMsgState.QueuedQos1;
+                            }
+                            // it's QoS 2
+                            else if (msgContext.Message.QosLevel == MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE)
+                            {
+                                // we haven't received PUBREC, we need to resend PUBLISH message
+                                if (msgContext.State == MqttMsgState.WaitForPubrec)
                                 {
-                                    // we haven't received PUBACK, we need to resend PUBLISH message
-                                    msgContext.State = MqttMsgState.QueuedQos1;
+                                    msgContext.State = MqttMsgState.QueuedQos2;
                                 }
-                                // it's QoS 2
-                                else if (msgContext.Message.QosLevel == MqttMsgBase.QOS_LEVEL_EXACTLY_ONCE)
+                                // we haven't received PUBCOMP, we need to resend PUBREL for it
+                                else if (msgContext.State == MqttMsgState.WaitForPubcomp)
                                 {
-                                    // we haven't received PUBREC, we need to resend PUBLISH message
-                                    if (msgContext.State == MqttMsgState.WaitForPubrec)
-                                    {
-                                        msgContext.State = MqttMsgState.QueuedQos2;
-                                    }
-                                    // we haven't received PUBCOMP, we need to resend PUBREL for it
-                                    else if (msgContext.State == MqttMsgState.WaitForPubcomp)
-                                    {
-                                        msgContext.State = MqttMsgState.SendPubrel;
-                                    }
+                                    msgContext.State = MqttMsgState.SendPubrel;
                                 }
                             }
                         }
                     }
+                }
 
-                    // unlock process inflight queue
-                    this.inflightWaitHandle.Set();
-                }
-                else
-                {
-                    // create new session
-                    this.session = new MqttDatabasePersistence(".", this.ClientId, this.brokerHostName);
-                }
+                // unlock process inflight queue
+                this.inflightWaitHandle.Set();
             }
             else
             {
